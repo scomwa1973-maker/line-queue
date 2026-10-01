@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>เจ้าหน้าที่ — ระบบจองคิว</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Sarabun', system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .tab-on { background: #047857; color: #fff; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+
+  <!-- ===== Login ===== -->
+  <section id="view-login" class="min-h-screen flex items-center justify-center p-4" hidden>
+    <form id="login-form" class="bg-white rounded-3xl shadow-lg p-8 w-full max-w-sm space-y-5">
+      <div class="text-center">
+        <div class="text-4xl">🎫</div>
+        <h1 class="text-xl font-bold mt-2">สำหรับเจ้าหน้าที่</h1>
+        <p class="text-sm text-slate-500">ระบบจองคิวออนไลน์</p>
+      </div>
+      <label class="block">
+        <span class="text-sm text-slate-600">PIN</span>
+        <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12"
+          class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-2xl tracking-[0.4em] text-center focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+      </label>
+      <p id="login-error" class="text-sm text-rose-600 text-center" hidden></p>
+      <button id="btn-login" type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold rounded-xl py-3">เข้าสู่ระบบ</button>
+    </form>
+  </section>
+
+  <!-- ===== App ===== -->
+  <div id="view-app" hidden>
+    <header class="bg-gradient-to-r from-emerald-700 to-teal-700 text-white">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+        <div class="font-bold text-lg mr-auto">🎫 ระบบจองคิว — เจ้าหน้าที่</div>
+        <nav class="flex gap-1 bg-white/10 rounded-xl p-1 text-sm font-semibold">
+          <button data-tab="call" class="tab px-3 py-1.5 rounded-lg">📢 เรียกคิว</button>
+          <button data-tab="dash" class="tab admin-only px-3 py-1.5 rounded-lg">📊 ภาพรวม</button>
+          <button data-tab="settings" class="tab admin-only px-3 py-1.5 rounded-lg">⚙️ ตั้งค่า</button>
+        </nav>
+        <div class="text-sm text-right leading-tight">
+          <div id="me-name" class="font-semibold"></div>
+          <div id="me-role" class="opacity-80 text-xs"></div>
+        </div>
+        <button id="btn-logout" class="text-sm bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5">ออกจากระบบ</button>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4">
+
+      <!-- ===== Tab: เรียกคิว ===== -->
+      <section id="tab-call" class="space-y-4" hidden>
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="block">
+            <span class="text-xs text-slate-500">แผนก</span>
+            <select id="sel-dept" class="block mt-1 rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold min-w-[12rem]"></select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-500">ช่องบริการของฉัน</span>
+            <select id="sel-counter" class="block mt-1 rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold"></select>
+          </label>
+          <div class="ml-auto text-xs text-slate-500 flex items-center gap-2">
+            <span id="live-dot" class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+            <span id="live-text">กำลังโหลด...</span>
+            <button id="btn-refresh" class="ml-1 underline">รีเฟรช</button>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-5 gap-4">
+          <!-- current at my counter -->
+          <div class="lg:col-span-3 bg-white rounded-3xl shadow-sm p-5 flex flex-col">
+            <div class="flex items-center justify-between">
+              <h2 class="font-bold text-slate-600">ช่อง <span id="cur-counter">1</span> — กำลังให้บริการ</h2>
+              <span id="cur-slot" class="text-sm text-slate-500"></span>
+            </div>
+            <div id="cur-empty" class="flex-1 flex items-center justify-center py-10 text-slate-400">ยังไม่มีคิวที่เรียกอยู่ที่ช่องนี้</div>
+            <div id="cur-box" class="flex-1 py-4 text-center" hidden>
+              <div id="cur-queue" class="text-7xl font-extrabold tracking-wider text-emerald-700"></div>
+              <div id="cur-name" class="text-xl font-semibold mt-2"></div>
+              <div id="cur-info" class="text-slate-500 mt-1"></div>
+            </div>
+            <button id="btn-next" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-2xl font-bold rounded-2xl py-5 shadow">📢 เรียกคิวถัดไป</button>
+            <div class="grid grid-cols-3 gap-2 mt-2">
+              <button id="btn-recall" class="bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold rounded-xl py-3 disabled:opacity-40">🔁 เรียกซ้ำ</button>
+              <button id="btn-done" class="bg-slate-100 hover:bg-slate-200 font-semibold rounded-xl py-3 disabled:opacity-40">✅ เสร็จสิ้น</button>
+              <button id="btn-noshow" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-xl py-3 disabled:opacity-40">🚫 ไม่มา</button>
+            </div>
+            <p class="text-xs text-slate-400 mt-2">"เรียกคิวถัดไป" จะปิดคิวปัจจุบันของช่องนี้เป็น "เสร็จสิ้น" ให้อัตโนมัติ</p>
+          </div>
+
+          <!-- stats + next -->
+          <div class="lg:col-span-2 space-y-4">
+            <div class="grid grid-cols-3 gap-2 text-center" id="stats"></div>
+            <div class="bg-white rounded-3xl shadow-sm p-4">
+              <h3 class="font-bold text-slate-600 mb-2">คิวถัดไป</h3>
+              <ol id="next-list" class="space-y-1.5 text-sm"></ol>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm p-4">
+          <div class="flex flex-wrap items-center gap-2 mb-3">
+            <h3 class="font-bold text-slate-600 mr-auto">คิวทั้งหมดวันนี้</h3>
+            <div id="filters" class="flex gap-1 text-sm"></div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-left text-slate-500 border-b">
+                <tr><th class="py-2 pr-2">คิว</th><th class="pr-2">ช่วงเวลา</th><th class="pr-2">ชื่อ (LINE)</th><th class="pr-2">เลขสมาชิก</th><th class="pr-2">โทร</th><th class="pr-2">สถานะ</th><th class="pr-2">ช่อง</th><th class="text-right">จัดการ</th></tr>
+              </thead>
+              <tbody id="queue-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Tab: ภาพรวม ===== -->
+      <section id="tab-dash" class="space-y-4" hidden>
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="block">
+            <span class="text-xs text-slate-500">วันที่</span>
+            <input id="dash-date" type="date" class="block mt-1 rounded-xl border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <button id="btn-dash" class="bg-emerald-600 text-white rounded-xl px-4 py-2 font-semibold">ดูข้อมูล</button>
+        </div>
+        <div id="dash-totals" class="grid grid-cols-3 md:grid-cols-6 gap-2 text-center"></div>
+        <div id="dash-depts" class="grid md:grid-cols-2 gap-4"></div>
+      </section>
+
+      <!-- ===== Tab: ตั้งค่า ===== -->
+      <section id="tab-settings" class="space-y-4" hidden>
+        <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-3 text-sm">
+          แก้ค่าแล้วบันทึกทันที มีผลกับหน้าจองของสมาชิกภายในไม่กี่วินาที ·
+          เพิ่มแผนก/ช่วงเวลาใหม่, วันหยุด, โควตาเฉพาะแผนก และ PIN เจ้าหน้าที่ ให้แก้ใน
+          <a id="sheet-link" target="_blank" rel="noopener" class="underline font-semibold">Google Sheet</a>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm p-5 space-y-4">
+          <h3 class="font-bold">การรับจอง</h3>
+          <div id="cfg-fields" class="grid md:grid-cols-2 gap-4"></div>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm p-5">
+          <h3 class="font-bold mb-3">แผนก / ฝ่าย</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-left text-slate-500 border-b"><tr><th class="py-2 pr-2">รหัส</th><th class="pr-2">ไอคอน</th><th class="pr-2">ชื่อแผนก</th><th class="pr-2">คำอธิบาย</th><th class="pr-2">ช่องบริการ</th><th class="pr-2">ลำดับ</th><th>เปิด</th></tr></thead>
+              <tbody id="dept-rows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm p-5">
+          <h3 class="font-bold mb-3">ช่วงเวลา และโควตา (คิวต่อแผนกต่อช่วง)</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-left text-slate-500 border-b"><tr><th class="py-2 pr-2">รหัส</th><th class="pr-2">ข้อความที่แสดง</th><th class="pr-2">เริ่ม</th><th class="pr-2">สิ้นสุด</th><th class="pr-2">โควตา</th><th class="pr-2">ลำดับ</th><th>เปิด</th></tr></thead>
+              <tbody id="slot-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-6 z-50 px-4 py-3 rounded-xl shadow-lg text-white text-sm font-semibold" hidden></div>
+
+<script>
+const APP = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbxsWhekn5r2CQQ552TU6foeP6ENDifmzCUt63Kl3GOO253Dq2aL0pIroqJVs9s85-Exzw/exec',
+};
+
+const STATUS_UI = {
+  WAITING:   { label: 'รอเรียก',     cls: 'bg-amber-100 text-amber-800' },
+  CALLED:    { label: 'กำลังเรียก',   cls: 'bg-emerald-600 text-white' },
+  DONE:      { label: 'เสร็จสิ้น',    cls: 'bg-slate-200 text-slate-700' },
+  NO_SHOW:   { label: 'ไม่มา',       cls: 'bg-rose-100 text-rose-700' },
+  CANCELLED: { label: 'ยกเลิก',      cls: 'bg-slate-100 text-slate-400' },
+};
+
+const state = { session: null, staff: null, tab: 'call', dept: null, counter: '1', queue: null, filter: 'ACTIVE', busy: false };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+
+let toastTimer;
+function toast(msg, type) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = el.className.replace(/bg-\S+/g, '') + ' ' + (type === 'error' ? 'bg-rose-600' : 'bg-emerald-700');
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 3000);
+}
+
+/* ------------------------------------------------------------------ API */
+async function api(action, data) {
+  const payload = Object.assign({ action, session: state.session }, data || {});
+  let res;
+  try {
+    const r = await fetch(APP.API_URL, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
+    res = await r.json();
+  } catch (e) {
+    const err = new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'); err.code = 'NETWORK'; throw err;
+  }
+  if (!res || !res.ok) {
+    const err = new Error((res && res.message) || 'เกิดข้อผิดพลาด'); err.code = res && res.code;
+    if (err.code === 'AUTH_EXPIRED') logout(err.message);
+    throw err;
+  }
+  return res.data;
+}
+
+/* ------------------------------------------------------------------ login */
+async function login(pin) {
+  const d = await api('staffLogin', { pin });
+  state.session = d.session;
+  store.set('q_staff_session', JSON.stringify({ session: d.session, exp: Date.now() + 11.5 * 3600000 }));
+  startApp(d.staff);
+}
+
+function logout(msg) {
+  state.session = null; state.staff = null;
+  store.del('q_staff_session');
+  stopPolling();
+  $('view-app').hidden = true;
+  $('view-login').hidden = false;
+  $('pin').value = '';
+  $('login-error').hidden = !msg;
+  $('login-error').textContent = msg || '';
+  $('pin').focus();
+}
+
+function startApp(staff) {
+  state.staff = staff;
+  $('view-login').hidden = true;
+  $('view-app').hidden = false;
+  $('me-name').textContent = staff.name;
+  $('me-role').textContent = staff.role === 'ADMIN' ? 'ผู้ดูแลระบบ' : 'เจ้าหน้าที่';
+  document.querySelectorAll('.admin-only').forEach((el) => { el.hidden = staff.role !== 'ADMIN'; });
+
+  $('sel-dept').innerHTML = staff.depts.map((d) => `<option value="${esc(d.id)}">${esc(d.icon)} ${esc(d.name)}</option>`).join('');
+  const savedDept = store.get('q_staff_dept');
+  state.dept = staff.depts.find((d) => d.id === savedDept) || staff.depts[0] || null;
+  if (state.dept) $('sel-dept').value = state.dept.id;
+  fillCounters();
+  showTab('call');
+}
+
+function fillCounters() {
+  const n = state.dept ? state.dept.counters : 1;
+  $('sel-counter').innerHTML = Array.from({ length: n }, (_, i) => `<option value="${i + 1}">ช่อง ${i + 1}</option>`).join('');
+  const saved = store.get('q_staff_counter_' + (state.dept && state.dept.id));
+  state.counter = saved && +saved >= 1 && +saved <= n ? saved : '1';
+  $('sel-counter').value = state.counter;
+  $('cur-counter').textContent = state.counter;
+}
+
+function showTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('tab-on', b.dataset.tab === tab));
+  ['call', 'dash', 'settings'].forEach((t) => { $('tab-' + t).hidden = t !== tab; });
+  if (tab === 'call') startPolling(); else stopPolling();
+  if (tab === 'dash') loadDashboard();
+  if (tab === 'settings') loadSettings();
+}
+
+/* ------------------------------------------------------------------ เรียกคิว */
+const poll = { timer: null, gen: 0 };
+function startPolling() { stopPolling(); const g = ++poll.gen; tick(g); }
+function stopPolling() { poll.gen++; clearTimeout(poll.timer); }
+async function tick(g) {
+  if (g !== poll.gen) return;
+  if (!document.hidden) await loadQueue();
+  if (g !== poll.gen) return;
+  poll.timer = setTimeout(() => tick(g), 8000);
+}
+
+async function loadQueue() {
+  if (!state.dept) { $('live-text').textContent = 'คุณยังไม่ได้รับสิทธิ์ดูแลแผนกใด'; return; }
+  try {
+    state.queue = await api('staffQueue', { deptId: state.dept.id });
+    if (state.queue.dept.counters !== state.dept.counters) { state.dept.counters = state.queue.dept.counters; fillCounters(); }
+    renderQueue();
+    $('live-dot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+    $('live-text').textContent = 'อัปเดต ' + state.queue.serverTime.slice(11, 19);
+  } catch (e) {
+    $('live-dot').className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+    $('live-text').textContent = e.message;
+  }
+}
+
+function currentAtMyCounter() {
+  if (!state.queue) return null;
+  return state.queue.bookings
+    .filter((b) => b.status === 'CALLED' && String(b.counter) === String(state.counter))
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0] || null;
+}
+
+function renderQueue() {
+  const q = state.queue;
+  if (!q) return;
+  const cur = currentAtMyCounter();
+  $('cur-empty').hidden = !!cur;
+  $('cur-box').hidden = !cur;
+  $('cur-slot').textContent = cur ? cur.slotLabel : '';
+  if (cur) {
+    $('cur-queue').textContent = cur.queueNo;
+    $('cur-name').textContent = cur.displayName || '-';
+    $('cur-info').textContent = 'สมาชิก ' + (cur.memberId || '-') + ' · โทร ' + (cur.phone || '-');
+  }
+  ['btn-recall', 'btn-done', 'btn-noshow'].forEach((id) => { $(id).disabled = !cur || state.busy; });
+  $('btn-next').disabled = state.busy;
+
+  const s = q.summary;
+  const stat = (label, n, cls) => `<div class="rounded-2xl p-3 ${cls}"><div class="text-2xl font-extrabold">${n}</div><div class="text-xs">${label}</div></div>`;
+  $('stats').innerHTML = stat('รอเรียก', s.waiting, 'bg-amber-50 text-amber-900') + stat('กำลังเรียก', s.called, 'bg-emerald-50 text-emerald-800') +
+    stat('เสร็จสิ้น', s.done, 'bg-slate-50') + stat('ไม่มา', s.noShow, 'bg-rose-50 text-rose-800') +
+    stat('ยกเลิก', s.cancelled, 'bg-slate-50 text-slate-500') + stat('จองทั้งหมด', s.total, 'bg-white border');
+
+  const waiting = q.bookings.filter((b) => b.status === 'WAITING');
+  $('next-list').innerHTML = waiting.length
+    ? waiting.slice(0, 6).map((b, i) => `<li class="flex justify-between gap-2 ${i === 0 ? 'font-bold text-emerald-700' : ''}"><span>${esc(b.queueNo)} · ${esc(b.displayName || '')}</span><span class="text-slate-400 text-xs">${esc(b.slotLabel)}</span></li>`).join('')
+    : '<li class="text-slate-400">ไม่มีคิวรอ</li>';
+
+  const filters = [['ACTIVE', 'รอ/กำลังเรียก'], ['ALL', 'ทั้งหมด'], ['DONE', 'เสร็จ/ไม่มา']];
+  $('filters').innerHTML = filters.map(([k, l]) => `<button data-filter="${k}" class="px-3 py-1 rounded-lg ${state.filter === k ? 'bg-emerald-600 text-white' : 'bg-slate-100'}">${l}</button>`).join('');
+
+  const rows = q.bookings.filter((b) => state.filter === 'ALL' ? true
+    : state.filter === 'ACTIVE' ? (b.status === 'WAITING' || b.status === 'CALLED')
+    : (b.status === 'DONE' || b.status === 'NO_SHOW'));
+  $('queue-rows').innerHTML = rows.length ? rows.map(rowHtml).join('')
+    : '<tr><td colspan="8" class="py-6 text-center text-slate-400">ไม่มีรายการ</td></tr>';
+}
+
+function rowHtml(b) {
+  const ui = STATUS_UI[b.status] || { label: b.status, cls: 'bg-slate-100' };
+  const act = (st, label, cls) => `<button data-act="${st}" data-id="${esc(b.bookingId)}" class="px-2 py-1 rounded-lg text-xs font-semibold ${cls}">${label}</button>`;
+  let actions = '';
+  if (b.status === 'WAITING') actions = act('CALLED', '📢 เรียกที่ช่อง ' + esc(state.counter), 'bg-emerald-600 text-white') + ' ' + act('NO_SHOW', 'ไม่มา', 'bg-rose-50 text-rose-700');
+  else if (b.status === 'CALLED') actions = act('CALLED', 'เรียกซ้ำ', 'bg-amber-100') + ' ' + act('DONE', 'เสร็จ', 'bg-slate-100') + ' ' + act('NO_SHOW', 'ไม่มา', 'bg-rose-50 text-rose-700');
+  else if (b.status === 'DONE' || b.status === 'NO_SHOW') actions = act('WAITING', 'คืนกลับไปรอ', 'bg-slate-100');
+  return `<tr class="border-b last:border-0 ${b.status === 'CALLED' ? 'bg-emerald-50' : ''}">
+    <td class="py-2 pr-2 font-bold">${esc(b.queueNo)}</td><td class="pr-2">${esc(b.slotLabel)}</td>
+    <td class="pr-2">${esc(b.displayName)}</td><td class="pr-2">${esc(b.memberId)}</td><td class="pr-2">${esc(b.phone)}</td>
+    <td class="pr-2"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${ui.cls}">${ui.label}</span></td>
+    <td class="pr-2">${esc(b.counter)}</td><td class="text-right whitespace-nowrap">${actions}</td></tr>`;
+}
+
+async function runAction(fn, okMsg) {
+  if (state.busy) return;
+  state.busy = true; renderQueue();
+  try {
+    const r = await fn();
+    if (okMsg) toast(typeof okMsg === 'function' ? okMsg(r) : okMsg);
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    state.busy = false;
+    await loadQueue();
+  }
+}
+
+function callNext() {
+  return runAction(() => api('staffCallNext', { deptId: state.dept.id, counter: state.counter }),
+    (r) => r.called ? 'เรียกคิว ' + r.called.queueNo + ' ที่ช่อง ' + state.counter : 'ไม่มีคิวรอแล้ว');
+}
+function setStatus(bookingId, status) {
+  const msg = { CALLED: 'เรียกคิวแล้ว', DONE: 'บันทึกเสร็จสิ้น', NO_SHOW: 'บันทึกไม่มา', WAITING: 'คืนคิวกลับไปรอแล้ว' }[status];
+  return runAction(() => api('staffSetStatus', { bookingId, status, counter: state.counter }), msg);
+}
+
+/* ------------------------------------------------------------------ ภาพรวม */
+async function loadDashboard() {
+  const date = $('dash-date').value;
+  $('dash-depts').innerHTML = '<p class="text-slate-400">กำลังโหลด...</p>';
+  try {
+    const d = await api('adminDashboard', { date });
+    $('dash-date').value = d.date;
+    const t = d.totals;
+    const card = (label, n, cls) => `<div class="rounded-2xl p-3 ${cls}"><div class="text-2xl font-extrabold">${n}</div><div class="text-xs">${label}</div></div>`;
+    $('dash-totals').innerHTML = card('จองทั้งหมด', t.total, 'bg-white border') + card('รอเรียก', t.WAITING, 'bg-amber-50 text-amber-900') +
+      card('กำลังเรียก', t.CALLED, 'bg-emerald-50 text-emerald-800') + card('เสร็จสิ้น', t.DONE, 'bg-slate-50') +
+      card('ไม่มา', t.NO_SHOW, 'bg-rose-50 text-rose-800') + card('ยกเลิก', t.CANCELLED, 'bg-slate-50 text-slate-500') +
+      (!d.push ? '' : d.push.error
+        ? `<div class="col-span-full rounded-2xl p-3 bg-rose-50 text-rose-800 text-sm">LINE แจ้งเตือน: ใช้งานไม่ได้ (${esc(d.push.error)}) — ตรวจ LINE_MESSAGING_TOKEN</div>`
+        : `<div class="col-span-full rounded-2xl p-3 text-sm ${d.push.limit != null && d.push.used >= d.push.limit ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-900'}">
+            💬 ข้อความ LINE เดือนนี้: <b>${d.push.used}</b>${d.push.limit != null ? ' / ' + d.push.limit + (d.push.used >= d.push.limit ? ' — โควตาเต็ม สมาชิกจะได้รับเฉพาะเสียงจากหน้าเว็บ' : '') : ' (ไม่จำกัด)'}</div>`);
+    $('dash-depts').innerHTML = d.depts.map((x) => `
+      <div class="bg-white rounded-3xl shadow-sm p-4">
+        <div class="flex justify-between items-center mb-2">
+          <h4 class="font-bold">${esc(x.icon)} ${esc(x.name)}</h4>
+          <span class="text-xs text-slate-500">${x.counters} ช่อง · จอง ${x.total} · รอ ${x.WAITING} · เสร็จ ${x.DONE} · ไม่มา ${x.NO_SHOW}</span>
+        </div>
+        ${x.slots.map((s) => {
+          const pct = s.quota ? Math.min(100, Math.round(100 * s.booked / s.quota)) : 0;
+          return `<div class="flex items-center gap-2 text-xs my-1"><span class="w-28 shrink-0 text-slate-500">${esc(s.label)}</span>
+            <div class="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${pct >= 100 ? 'bg-rose-500' : 'bg-emerald-500'}" style="width:${pct}%"></div></div>
+            <span class="w-14 text-right">${s.booked}/${s.quota}</span></div>`;
+        }).join('')}
+      </div>`).join('');
+  } catch (e) {
+    $('dash-depts').innerHTML = `<p class="text-rose-600">${esc(e.message)}</p>`;
+  }
+}
+
+/* ------------------------------------------------------------------ ตั้งค่า */
+const CFG_UI = [
+  ['BOOKING_OPEN', 'เปิดรับจอง', 'bool'],
+  ['ANNOUNCEMENT', 'ข้อความประกาศบนหน้าจอง', 'textarea'],
+  ['CLOSED_MESSAGE', 'ข้อความเมื่อปิดรับจอง', 'text'],
+  ['ORG_NAME', 'ชื่อหน่วยงาน', 'text'],
+  ['SYSTEM_NAME', 'ชื่อระบบ', 'text'],
+  ['BOOKING_DAYS_AHEAD', 'จองล่วงหน้าได้ (วันทำการ)', 'number'],
+  ['MAX_BOOKINGS_PER_USER_PER_DAY', 'คิวสูงสุดต่อคนต่อวัน', 'number'],
+  ['OPEN_WEEKDAYS', 'วันเปิดบริการ (1=จ. … 7=อา.)', 'text'],
+  ['ALLOW_SAME_DAY', 'จองคิวของวันนี้ได้', 'bool'],
+  ['PUSH_ENABLED', 'ส่งข้อความ LINE เมื่อถึงคิว (ดังแม้ปิดจอ)', 'bool'],
+  ['PUSH_AHEAD', 'ส่ง LINE "ใกล้ถึงคิว" เมื่อเหลือก่อนหน้า ≤ N คิว (0 = ไม่ส่ง)', 'number'],
+  ['LINE_OA_ID', 'LINE ID ของ Official Account (เช่น @123abcde)', 'text'],
+  ['LIFF_URL', 'ลิงก์หน้าจองคิว (แนบท้ายข้อความ LINE)', 'text'],
+];
+
+async function loadSettings() {
+  try {
+    const d = await api('adminSettings');
+    $('sheet-link').href = d.sheetUrl;
+    const cfg = {}; d.config.forEach((r) => { cfg[r.Key] = r.Value; });
+    $('cfg-fields').innerHTML = CFG_UI.map(([k, label, type]) => {
+      const v = cfg[k] == null ? '' : cfg[k];
+      const attrs = `data-table="Config" data-key="${k}" data-field="Value"`;
+      if (type === 'bool') {
+        const on = /^(true|yes|1)$/i.test(v);
+        return `<label class="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-4 py-3"><span class="font-semibold">${label}</span>
+          <input type="checkbox" class="w-6 h-6 accent-emerald-600" ${attrs} ${on ? 'checked' : ''}></label>`;
+      }
+      const input = type === 'textarea'
+        ? `<textarea rows="2" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" ${attrs}>${esc(v)}</textarea>`
+        : `<input type="${type === 'number' ? 'number' : 'text'}" min="0" value="${esc(v)}" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" ${attrs}>`;
+      return `<label class="block ${type === 'textarea' ? 'md:col-span-2' : ''}"><span class="text-sm text-slate-600">${label}</span>${input}</label>`;
+    }).join('');
+
+    const inp = (table, key, field, value, cls, type) => `<input type="${type || 'text'}" min="0" value="${esc(value)}" data-table="${table}" data-key="${esc(key)}" data-field="${field}" class="w-full rounded-lg border border-slate-300 px-2 py-1 ${cls || ''}">`;
+    const chk = (table, key, value) => `<input type="checkbox" class="w-5 h-5 accent-emerald-600" data-table="${table}" data-key="${esc(key)}" data-field="Active" ${/^true$/i.test(value) ? 'checked' : ''}>`;
+    $('dept-rows').innerHTML = d.departments.map((r) => `<tr class="border-b last:border-0">
+      <td class="py-2 pr-2 font-mono text-xs">${esc(r.DeptID)}</td>
+      <td class="pr-2 w-16">${inp('Departments', r.DeptID, 'Icon', r.Icon, 'text-center')}</td>
+      <td class="pr-2 min-w-[10rem]">${inp('Departments', r.DeptID, 'DeptName', r.DeptName)}</td>
+      <td class="pr-2 min-w-[12rem]">${inp('Departments', r.DeptID, 'Description', r.Description)}</td>
+      <td class="pr-2 w-20">${inp('Departments', r.DeptID, 'Counters', r.Counters || 1, 'text-center', 'number')}</td>
+      <td class="pr-2 w-20">${inp('Departments', r.DeptID, 'SortOrder', r.SortOrder, 'text-center', 'number')}</td>
+      <td>${chk('Departments', r.DeptID, r.Active)}</td></tr>`).join('');
+    $('slot-rows').innerHTML = d.slots.map((r) => `<tr class="border-b last:border-0">
+      <td class="py-2 pr-2 font-mono text-xs">${esc(r.SlotID)}</td>
+      <td class="pr-2 min-w-[10rem]">${inp('TimeSlots', r.SlotID, 'Label', r.Label)}</td>
+      <td class="pr-2 w-24">${inp('TimeSlots', r.SlotID, 'StartTime', r.StartTime, 'text-center')}</td>
+      <td class="pr-2 w-24">${inp('TimeSlots', r.SlotID, 'EndTime', r.EndTime, 'text-center')}</td>
+      <td class="pr-2 w-20">${inp('TimeSlots', r.SlotID, 'DefaultQuota', r.DefaultQuota, 'text-center', 'number')}</td>
+      <td class="pr-2 w-20">${inp('TimeSlots', r.SlotID, 'SortOrder', r.SortOrder, 'text-center', 'number')}</td>
+      <td>${chk('TimeSlots', r.SlotID, r.Active)}</td></tr>`).join('');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function saveField(el) {
+  const value = el.type === 'checkbox' ? (el.checked ? 'TRUE' : 'FALSE') : el.value;
+  el.disabled = true;
+  try {
+    const r = await api('adminSave', { table: el.dataset.table, key: el.dataset.key, field: el.dataset.field, value });
+    if (el.type !== 'checkbox') el.value = r.value;
+    el.classList.add('ring-2', 'ring-emerald-400');
+    setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-400'), 1200);
+    toast('บันทึกแล้ว');
+  } catch (e) {
+    toast(e.message, 'error');
+    if (el.type === 'checkbox') el.checked = !el.checked;
+  } finally {
+    el.disabled = false;
+  }
+}
+
+/* ------------------------------------------------------------------ events */
+function bind() {
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pin = $('pin').value.trim();
+    if (!pin) return;
+    $('btn-login').disabled = true;
+    $('login-error').hidden = true;
+    try { await login(pin); } catch (err) { $('login-error').textContent = err.message; $('login-error').hidden = false; }
+    finally { $('btn-login').disabled = false; }
+  });
+  $('btn-logout').addEventListener('click', () => logout());
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+  $('sel-dept').addEventListener('change', () => {
+    state.dept = state.staff.depts.find((d) => d.id === $('sel-dept').value);
+    store.set('q_staff_dept', state.dept.id);
+    state.queue = null;
+    fillCounters();
+    startPolling();
+  });
+  $('sel-counter').addEventListener('change', () => {
+    state.counter = $('sel-counter').value;
+    store.set('q_staff_counter_' + state.dept.id, state.counter);
+    $('cur-counter').textContent = state.counter;
+    if (state.queue) renderQueue();
+  });
+  $('btn-refresh').addEventListener('click', loadQueue);
+  $('btn-next').addEventListener('click', callNext);
+  $('btn-recall').addEventListener('click', () => { const c = currentAtMyCounter(); if (c) setStatus(c.bookingId, 'CALLED'); });
+  $('btn-done').addEventListener('click', () => { const c = currentAtMyCounter(); if (c) setStatus(c.bookingId, 'DONE'); });
+  $('btn-noshow').addEventListener('click', () => { const c = currentAtMyCounter(); if (c && confirm('บันทึกคิว ' + c.queueNo + ' ว่าไม่มา?')) setStatus(c.bookingId, 'NO_SHOW'); });
+  $('filters').addEventListener('click', (e) => { const b = e.target.closest('[data-filter]'); if (b) { state.filter = b.dataset.filter; renderQueue(); } });
+  $('queue-rows').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) setStatus(b.dataset.id, b.dataset.act); });
+
+  $('btn-dash').addEventListener('click', loadDashboard);
+  $('tab-settings').addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.table) saveField(e.target); });
+
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && state.tab === 'call' && state.session) startPolling(); });
+}
+
+/* ------------------------------------------------------------------ init */
+async function init() {
+  bind();
+  try {
+    const saved = JSON.parse(store.get('q_staff_session') || 'null');
+    if (saved && saved.exp > Date.now()) {
+      state.session = saved.session;
+      const d = await api('staffMe');
+      startApp(d.staff);
+      return;
+    }
+  } catch (e) { /* ล็อกอินใหม่ */ }
+  logout();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
