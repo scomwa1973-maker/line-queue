@@ -137,7 +137,7 @@
       <section id="tab-settings" class="space-y-4" hidden>
         <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-3 text-sm">
           แก้ค่าแล้วบันทึกทันที มีผลกับหน้าจองของสมาชิกภายในไม่กี่วินาที ·
-          เพิ่มแผนก/ช่วงเวลาใหม่, วันหยุด, โควตาเฉพาะแผนก และ PIN เจ้าหน้าที่ ให้แก้ใน
+          เพิ่มแผนก/ช่วงเวลาใหม่, วันหยุด และ PIN เจ้าหน้าที่ ให้แก้ใน
           <a id="sheet-link" target="_blank" rel="noopener" class="underline font-semibold">Google Sheet</a>
         </div>
 
@@ -150,8 +150,21 @@
           <h3 class="font-bold mb-3">แผนก / ฝ่าย</h3>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
-              <thead class="text-left text-slate-500 border-b"><tr><th class="py-2 pr-2">รหัส</th><th class="pr-2">ไอคอน</th><th class="pr-2">ชื่อแผนก</th><th class="pr-2">คำอธิบาย</th><th class="pr-2">ช่องบริการ</th><th class="pr-2">ลำดับ</th><th>เปิด</th></tr></thead>
+              <thead class="text-left text-slate-500 border-b"><tr><th class="py-2 pr-2">รหัส</th><th class="pr-2">ไอคอน</th><th class="pr-2">ชื่อแผนก</th><th class="pr-2">คำอธิบาย</th><th class="pr-2">ช่องบริการ</th><th class="pr-2">โควตา/ช่วง</th><th class="pr-2">โควตา/วัน</th><th class="pr-2">ลำดับ</th><th>เปิด</th></tr></thead>
               <tbody id="dept-rows"></tbody>
+            </table>
+          </div>
+          <p class="text-xs text-slate-500 mt-2">โควตา/ช่วง = จำนวนคิวต่อช่วงเวลาของแผนกนั้น (เว้นว่าง = ใช้โควตาเริ่มต้นของช่วงเวลา) ·
+            โควตา/วัน = จำนวนคิวรวมทั้งวันของแผนก (เว้นว่างหรือ 0 = ไม่จำกัด)</p>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm p-5">
+          <h3 class="font-bold">โควตาแยกแผนก × ช่วงเวลา</h3>
+          <p class="text-xs text-slate-500 mb-3">ใส่ตัวเลขเฉพาะช่องที่ต้องการกำหนดพิเศษ (0 = ปิดรับช่วงนั้น) · เว้นว่าง = ใช้โควตา/ช่วงของแผนก หรือโควตาเริ่มต้นของช่วงเวลา (ตัวเลขสีเทา)</p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead id="quota-head" class="text-left text-slate-500 border-b"></thead>
+              <tbody id="quota-rows"></tbody>
             </table>
           </div>
         </div>
@@ -160,7 +173,7 @@
           <h3 class="font-bold mb-3">ช่วงเวลา และโควตา (คิวต่อแผนกต่อช่วง)</h3>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
-              <thead class="text-left text-slate-500 border-b"><tr><th class="py-2 pr-2">รหัส</th><th class="pr-2">ข้อความที่แสดง</th><th class="pr-2">เริ่ม</th><th class="pr-2">สิ้นสุด</th><th class="pr-2">โควตา</th><th class="pr-2">ลำดับ</th><th>เปิด</th></tr></thead>
+              <thead class="text-left text-slate-500 border-b"><tr><th class="py-2 pr-2">รหัส</th><th class="pr-2">ข้อความที่แสดง</th><th class="pr-2">เริ่ม</th><th class="pr-2">สิ้นสุด</th><th class="pr-2">โควตาเริ่มต้น</th><th class="pr-2">ลำดับ</th><th>เปิด</th></tr></thead>
               <tbody id="slot-rows"></tbody>
             </table>
           </div>
@@ -400,7 +413,7 @@ async function loadDashboard() {
       <div class="bg-white rounded-3xl shadow-sm p-4">
         <div class="flex justify-between items-center mb-2">
           <h4 class="font-bold">${esc(x.icon)} ${esc(x.name)}</h4>
-          <span class="text-xs text-slate-500">${x.counters} ช่อง · จอง ${x.total} · รอ ${x.WAITING} · เสร็จ ${x.DONE} · ไม่มา ${x.NO_SHOW}</span>
+          <span class="text-xs text-slate-500">${x.counters} ช่อง · จอง ${x.total}${x.dailyQuota ? '/' + x.dailyQuota + (x.total >= x.dailyQuota ? ' <b class="text-rose-600">(เต็ม)</b>' : '') : ''} · รอ ${x.WAITING} · เสร็จ ${x.DONE} · ไม่มา ${x.NO_SHOW}</span>
         </div>
         ${x.slots.map((s) => {
           const pct = s.quota ? Math.min(100, Math.round(100 * s.booked / s.quota)) : 0;
@@ -458,6 +471,8 @@ async function loadSettings() {
       <td class="pr-2 min-w-[10rem]">${inp('Departments', r.DeptID, 'DeptName', r.DeptName)}</td>
       <td class="pr-2 min-w-[12rem]">${inp('Departments', r.DeptID, 'Description', r.Description)}</td>
       <td class="pr-2 w-20">${inp('Departments', r.DeptID, 'Counters', r.Counters || 1, 'text-center', 'number')}</td>
+      <td class="pr-2 w-24">${inp('Departments', r.DeptID, 'SlotQuota', r.SlotQuota, 'text-center', 'number').replace('<input', '<input placeholder="ตามช่วง"')}</td>
+      <td class="pr-2 w-24">${inp('Departments', r.DeptID, 'DailyQuota', r.DailyQuota, 'text-center', 'number').replace('<input', '<input placeholder="ไม่จำกัด"')}</td>
       <td class="pr-2 w-20">${inp('Departments', r.DeptID, 'SortOrder', r.SortOrder, 'text-center', 'number')}</td>
       <td>${chk('Departments', r.DeptID, r.Active)}</td></tr>`).join('');
     $('slot-rows').innerHTML = d.slots.map((r) => `<tr class="border-b last:border-0">
@@ -468,8 +483,45 @@ async function loadSettings() {
       <td class="pr-2 w-20">${inp('TimeSlots', r.SlotID, 'DefaultQuota', r.DefaultQuota, 'text-center', 'number')}</td>
       <td class="pr-2 w-20">${inp('TimeSlots', r.SlotID, 'SortOrder', r.SortOrder, 'text-center', 'number')}</td>
       <td>${chk('TimeSlots', r.SlotID, r.Active)}</td></tr>`).join('');
+    state.settings = d;
+    renderQuotaGrid();
   } catch (e) {
     toast(e.message, 'error');
+  }
+}
+
+/** ตารางโควตา แผนก × ช่วงเวลา — ช่องว่างแสดงค่าที่ใช้อยู่จริงเป็นตัวเลขสีเทา (placeholder) */
+function renderQuotaGrid() {
+  const d = state.settings;
+  if (!d) return;
+  const isBlank = (v) => v == null || String(v).trim() === '';
+  const ov = {}; (d.quotas || []).forEach((q) => { ov[q.deptId + '|' + q.slotId] = q.max; });
+  $('quota-head').innerHTML = '<tr><th class="py-2 pr-2">แผนก</th>' +
+    d.slots.map((s) => `<th class="pr-2 text-center whitespace-nowrap">${esc(s.Label || s.SlotID)}</th>`).join('') + '</tr>';
+  $('quota-rows').innerHTML = d.departments.map((r) => '<tr class="border-b last:border-0">' +
+    `<td class="py-2 pr-2 whitespace-nowrap">${esc(r.Icon || '')} ${esc(r.DeptName)}</td>` +
+    d.slots.map((s) => {
+      const k = r.DeptID + '|' + s.SlotID;
+      const base = isBlank(r.SlotQuota) ? s.DefaultQuota : r.SlotQuota;
+      const has = Object.prototype.hasOwnProperty.call(ov, k);
+      return `<td class="pr-2"><input type="number" min="0" data-quota-dept="${esc(r.DeptID)}" data-quota-slot="${esc(s.SlotID)}"
+        value="${has ? esc(ov[k]) : ''}" placeholder="${esc(base)}"
+        class="w-20 rounded-lg border px-2 py-1 text-center ${has ? 'border-emerald-500 bg-emerald-50 font-bold' : 'border-slate-300'}"></td>`;
+    }).join('') + '</tr>').join('');
+}
+
+async function saveQuota(el) {
+  el.disabled = true;
+  try {
+    const r = await api('adminSetQuota', { deptId: el.dataset.quotaDept, slotId: el.dataset.quotaSlot, value: el.value.trim() });
+    const q = (state.settings.quotas || []).filter((x) => !(x.deptId === r.deptId && x.slotId === r.slotId));
+    if (r.value !== '') q.push({ deptId: r.deptId, slotId: r.slotId, max: Number(r.value) });
+    state.settings.quotas = q;
+    renderQuotaGrid();
+    toast(r.value === '' ? 'ล้างโควตาเฉพาะแล้ว (ใช้ค่าเริ่มต้น)' : 'บันทึกโควตาแล้ว');
+  } catch (e) {
+    toast(e.message, 'error');
+    el.disabled = false;
   }
 }
 
@@ -526,7 +578,23 @@ function bind() {
   $('queue-rows').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) setStatus(b.dataset.id, b.dataset.act); });
 
   $('btn-dash').addEventListener('click', loadDashboard);
-  $('tab-settings').addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.table) saveField(e.target); });
+  $('tab-settings').addEventListener('change', (e) => {
+    if (!e.target.dataset) return;
+    if (e.target.dataset.table) {
+      saveField(e.target).then(() => {
+        // โควตา/ช่วงของแผนก หรือโควตาเริ่มต้นเปลี่ยน → อัปเดตตัวเลขเทาในตารางโควตา
+        const f = e.target.dataset.field;
+        if (state.settings && (f === 'SlotQuota' || f === 'DefaultQuota')) {
+          const list = f === 'SlotQuota' ? state.settings.departments : state.settings.slots;
+          const keyCol = f === 'SlotQuota' ? 'DeptID' : 'SlotID';
+          const row = list.find((x) => x[keyCol] === e.target.dataset.key);
+          if (row) { row[f] = e.target.value; renderQuotaGrid(); }
+        }
+      });
+    } else if (e.target.dataset.quotaDept) {
+      saveQuota(e.target);
+    }
+  });
 
   document.addEventListener('visibilitychange', () => { if (!document.hidden && state.tab === 'call' && state.session) startPolling(); });
 }
