@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>จองคิวออนไลน์</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Sarabun', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    [hidden] { display: none !important; }
+    .flash-called { animation: flashCalled 1s ease-in-out infinite; }
+    @keyframes flashCalled { 0%, 100% { background-color: #15803d; } 50% { background-color: #22c55e; } }
+    .ring-pulse { animation: ringPulse 1.4s ease-out infinite; }
+    @keyframes ringPulse { 0% { transform: scale(.9); opacity: .9; } 100% { transform: scale(1.35); opacity: 0; } }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+  <div class="max-w-md mx-auto min-h-screen flex flex-col">
+
+    <!-- ===== Header ===== -->
+    <header class="bg-gradient-to-br from-emerald-600 to-teal-700 text-white px-4 pt-5 pb-7 rounded-b-3xl shadow">
+      <div class="flex items-center gap-3">
+        <img id="user-pic" alt="" class="w-12 h-12 rounded-full border-2 border-white/70 object-cover bg-white/20" hidden />
+        <div class="min-w-0">
+          <p id="org-name" class="text-xs opacity-80 truncate"></p>
+          <h1 id="sys-name" class="text-xl font-bold leading-tight">ระบบจองคิวออนไลน์</h1>
+          <p id="user-name" class="text-sm opacity-90 truncate"></p>
+        </div>
+      </div>
+    </header>
+
+    <div id="announce" class="mx-4 -mt-4 bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-2xl px-3 py-2 shadow-sm" hidden></div>
+
+    <button id="sound-banner" type="button"
+      class="mx-4 mt-3 bg-rose-600 active:bg-rose-700 text-white text-sm font-semibold rounded-2xl px-4 py-3 shadow flex items-center gap-2" hidden>
+      <span class="text-xl">🔔</span><span class="text-left">แตะที่นี่เพื่อเปิดเสียงแจ้งเตือนเมื่อถึงคิว</span>
+    </button>
+
+    <main class="flex-1 px-4 py-4">
+
+      <!-- ===== Loading ===== -->
+      <section id="view-loading" class="py-24 text-center">
+        <div class="w-12 h-12 mx-auto border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+        <p id="loading-text" class="mt-4 text-slate-500">กำลังโหลด...</p>
+      </section>
+
+      <!-- ===== Error ===== -->
+      <section id="view-error" class="py-16 text-center" hidden>
+        <div class="text-5xl">⚠️</div>
+        <p id="error-text" class="mt-3 text-slate-600"></p>
+        <button id="btn-retry" type="button" class="mt-6 bg-emerald-600 text-white font-semibold px-6 py-3 rounded-xl">ลองใหม่</button>
+      </section>
+
+      <!-- ===== Status (คิวของฉัน) ===== -->
+      <section id="view-status" class="space-y-4" hidden>
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-bold">คิวของฉัน</h2>
+          <span id="live" class="text-xs text-slate-400 flex items-center gap-1.5">
+            <span class="relative flex w-2.5 h-2.5">
+              <span id="live-ping" class="absolute inset-0 rounded-full bg-emerald-400 ring-pulse" hidden></span>
+              <span id="live-dot" class="relative w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+            </span>
+            <span id="live-text">ออฟไลน์</span>
+          </span>
+        </div>
+        <div id="friend-card" class="bg-white border-2 border-[#06C755] rounded-2xl p-4 space-y-2 shadow-sm" hidden>
+          <p class="font-bold">🔔 รับแจ้งเตือนเมื่อถึงคิว แม้ปิดหน้าจอ</p>
+          <p class="text-sm text-slate-600">เพิ่มเพื่อน LINE ของสหกรณ์ ระบบจะส่งข้อความเข้า LINE เมื่อถึงคิว ดังได้แม้ล็อกหน้าจอ หรือกำลังใช้แอปอื่นอยู่</p>
+          <div class="flex gap-2">
+            <button id="btn-add-friend" type="button" class="flex-1 bg-[#06C755] active:opacity-80 text-white rounded-xl py-3 font-bold">➕ เพิ่มเพื่อน LINE</button>
+            <button id="btn-friend-later" type="button" class="px-4 text-slate-500 text-sm font-semibold">ไว้ทีหลัง</button>
+          </div>
+        </div>
+        <div id="today-list" class="space-y-3"></div>
+        <div id="future-wrap" class="space-y-3" hidden>
+          <h3 class="font-semibold text-slate-600">คิวล่วงหน้า</h3>
+          <div id="future-list" class="space-y-3"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <button id="btn-test-sound" type="button" class="bg-white border border-slate-200 rounded-xl py-3 font-semibold">🔊 ทดสอบเสียง</button>
+          <button id="btn-go-book" type="button" class="bg-emerald-600 active:bg-emerald-700 text-white rounded-xl py-3 font-semibold">+ จองคิวใหม่</button>
+        </div>
+        <p id="status-hint" class="text-xs text-slate-400 text-center">กรุณาเปิดหน้านี้ค้างไว้และเปิดเสียงโทรศัพท์ ระบบจะแจ้งเตือนเมื่อถึงคิว</p>
+      </section>
+
+      <!-- ===== Booking form ===== -->
+      <section id="view-book" class="space-y-5" hidden>
+        <button id="btn-go-status" type="button" class="text-emerald-700 font-semibold text-sm" hidden>← กลับไปดูคิวของฉัน</button>
+
+        <div id="book-closed" class="bg-white rounded-2xl p-6 text-center text-slate-600" hidden></div>
+
+        <div id="book-form" class="space-y-5">
+          <div>
+            <h3 class="font-bold mb-2"><span class="text-emerald-600">1.</span> เลือกวันที่</h3>
+            <div id="date-list" class="flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+          </div>
+
+          <div>
+            <h3 class="font-bold mb-2"><span class="text-emerald-600">2.</span> เลือกแผนก / ฝ่าย</h3>
+            <div id="dept-list" class="grid grid-cols-2 gap-3"></div>
+          </div>
+
+          <div>
+            <h3 class="font-bold mb-2"><span class="text-emerald-600">3.</span> เลือกช่วงเวลา</h3>
+            <div id="slot-list" class="grid grid-cols-2 gap-2"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl p-4 space-y-3 shadow-sm">
+            <h3 class="font-bold"><span class="text-emerald-600">4.</span> ข้อมูลสมาชิก</h3>
+            <label class="block">
+              <span class="text-sm text-slate-600">เลขทะเบียนสมาชิก</span>
+              <input id="member-id" type="text" inputmode="numeric" autocomplete="off" maxlength="20"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="เช่น 012345" />
+            </label>
+            <label class="block">
+              <span class="text-sm text-slate-600">เบอร์โทรศัพท์</span>
+              <input id="phone" type="tel" inputmode="numeric" autocomplete="tel" maxlength="10"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0812345678" />
+            </label>
+          </div>
+
+          <button id="btn-book" type="button" disabled
+            class="w-full bg-emerald-600 active:bg-emerald-700 disabled:bg-slate-300 text-white text-lg font-bold rounded-2xl py-4 shadow">
+            จองคิว
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer id="footer" class="text-center text-xs text-slate-400 pb-6"></footer>
+  </div>
+
+  <!-- ===== Confirm modal ===== -->
+  <div id="modal-confirm" class="fixed inset-0 z-40 bg-black/50 flex items-end justify-center" hidden>
+    <div class="bg-white w-full max-w-md rounded-t-3xl p-5 pb-8 space-y-4">
+      <h3 class="text-lg font-bold text-center">ยืนยันการจองคิว</h3>
+      <dl id="confirm-summary" class="bg-slate-50 rounded-2xl p-4 space-y-2 text-sm"></dl>
+      <p id="confirm-hint" class="text-xs text-slate-500 bg-amber-50 rounded-xl p-3">🔔 เมื่อกด “ยืนยันการจอง” ระบบจะเปิดการแจ้งเตือนด้วยเสียง กรุณาเปิดเสียงโทรศัพท์ (ปิดโหมดเงียบ) และเปิดหน้านี้ค้างไว้</p>
+      <div class="grid grid-cols-2 gap-3">
+        <button id="btn-cancel-confirm" type="button" class="border border-slate-300 rounded-xl py-3 font-semibold">แก้ไข</button>
+        <button id="btn-confirm" type="button" class="bg-emerald-600 active:bg-emerald-700 disabled:opacity-60 text-white rounded-xl py-3 font-bold">ยืนยันการจอง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Called overlay (หน้าจอเปลี่ยนสีเมื่อถึงคิว) ===== -->
+  <div id="overlay-called" class="fixed inset-0 z-50 flash-called text-white flex flex-col items-center justify-center p-6 text-center" hidden>
+    <p class="text-3xl font-bold">🔔 ถึงคิวของคุณแล้ว!</p>
+    <p id="oc-queue" class="text-8xl font-extrabold tracking-wider my-6"></p>
+    <p id="oc-dept" class="text-xl"></p>
+    <p id="oc-counter" class="text-3xl font-bold mt-3"></p>
+    <button id="btn-ack" type="button" class="mt-12 bg-white text-green-700 font-bold text-xl px-12 py-4 rounded-2xl shadow-lg">รับทราบ</button>
+  </div>
+
+  <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-6 z-[60] max-w-[90%] px-4 py-3 rounded-xl shadow-lg text-white text-sm font-semibold" hidden></div>
+
+<script>
+/* =====================================================================
+ *  CONFIG — ค่าเชื่อมต่อเท่านั้น (รายชื่อแผนก/เวลา/โควตา มาจาก Google Sheets ทั้งหมด)
+ * ===================================================================== */
+const APP = {
+  LIFF_ID: '2011810417-siX1a8Nq',                                   // จาก LINE Developers → LIFF
+  API_URL: 'https://script.google.com/macros/s/AKfycbxsWhekn5r2CQQ552TU6foeP6ENDifmzCUt63Kl3GOO253Dq2aL0pIroqJVs9s85-Exzw/exec', // URL ของ GAS Web App
+  DEV_MODE: new URLSearchParams(location.search).get('dev') === '1', // ?dev=1 ทดสอบนอก LINE (ต้องตั้ง DEV_MODE=true ที่ GAS)
+};
+
+const ACTIVE = ['WAITING', 'CALLED'];
+const STATUS_UI = {
+  WAITING:   { label: 'รอเรียก',     badge: 'bg-amber-100 text-amber-800' },
+  CALLED:    { label: 'ถึงคิวแล้ว',   badge: 'bg-white text-green-700' },
+  DONE:      { label: 'เสร็จสิ้น',    badge: 'bg-slate-200 text-slate-600' },
+  NO_SHOW:   { label: 'ไม่มาตามนัด',  badge: 'bg-rose-100 text-rose-700' },
+  CANCELLED: { label: 'ยกเลิกแล้ว',   badge: 'bg-slate-200 text-slate-500' },
+};
+
+const state = {
+  session: null, user: null, picture: null, today: null,
+  config: {}, departments: [], slots: [], openDates: [], myBookings: [],
+  sel: { date: null, deptId: null, slotId: null },
+  availability: null,
+};
+
+/* ------------------------------------------------------------------ utils */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+const sstore = {
+  get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { sessionStorage.removeItem(k); } catch (e) {} },
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function parseYmd(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function toYmd(dt) { return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0'); }
+function addDays(ymd, n) { const d = parseYmd(ymd); d.setDate(d.getDate() + n); return toYmd(d); }
+function fmtDateLong(ymd) { return parseYmd(ymd).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }
+
+function show(view) {
+  ['view-loading', 'view-error', 'view-status', 'view-book'].forEach((v) => { $(v).hidden = v !== view; });
+  window.scrollTo(0, 0);
+}
+function setLoading(text) { $('loading-text').textContent = text; }
+function showError(msg) { $('error-text').textContent = msg; show('view-error'); }
+
+let toastTimer;
+function toast(msg, type) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = el.className.replace(/bg-\S+/g, '') + ' ' +
+    (type === 'error' ? 'bg-rose-600' : type === 'success' ? 'bg-emerald-600' : 'bg-slate-800');
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 3500);
+}
+
+const todayActive = () => state.myBookings.filter((b) => b.date === state.today && ACTIVE.includes(b.status));
+const allActive = () => state.myBookings.filter((b) => b.date >= state.today && ACTIVE.includes(b.status));
+
+/* =====================================================================
+ *  SOUND — Audio Unlock สำหรับ iOS / LINE in-app browser
+ *  - เสียงถูกสร้างเป็นไฟล์ WAV ในเบราว์เซอร์ (ไม่ต้องโฮสต์ไฟล์เสียง)
+ *  - ช่วงต้นไฟล์เป็น "ความเงียบ" 0.35 วินาที → ตอน unlock ที่สั่ง play แล้ว pause ทันที จะไม่มีเสียงหลุด
+ * ===================================================================== */
+const Sound = (() => {
+  let audio = null, ctx = null, unlocked = false, stopTimer = null;
+
+  function createWavUrl() {
+    const sr = 22050, lead = 0.35, gap = 0.7;
+    const notes = [{ f: 988, at: 0, d: 0.6 }, { f: 784, at: 0.45, d: 1.0 }];   // ดิ๊ง-ด่อง
+    const n = Math.floor(sr * (lead + 0.45 + 1.0 + gap));
+    const pcm = new Float32Array(n);
+    notes.forEach(({ f, at, d }) => {
+      const s0 = Math.floor((lead + at) * sr), len = Math.floor(d * sr);
+      for (let i = 0; i < len && s0 + i < n; i++) {
+        const t = i / sr;
+        const env = Math.min(1, t * 200) * Math.exp(-3.2 * t);
+        pcm[s0 + i] += env * (0.5 * Math.sin(2 * Math.PI * f * t) +
+                              0.15 * Math.sin(4 * Math.PI * f * t) +
+                              0.05 * Math.sin(6 * Math.PI * f * t));
+      }
+    });
+    const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true);
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  }
+
+  function el() {
+    if (!audio) {
+      audio = new Audio(createWavUrl());
+      audio.preload = 'auto';
+      audio.setAttribute('playsinline', '');
+      audio.setAttribute('webkit-playsinline', '');
+    }
+    return audio;
+  }
+
+  function setUnlocked(v) { unlocked = v; updateSoundBanner(); }
+
+  /**
+   * ★ AUDIO UNLOCK ★
+   * ต้องถูกเรียก "แบบ synchronous" ภายใน click handler ของผู้ใช้ (ก่อน await / fetch ใดๆ)
+   * iOS/LINE จะอนุญาตให้ element นี้เล่นเสียงภายหลังได้ (ตอนถึงคิว) แม้ไม่มีการแตะหน้าจอ
+   */
+  function unlock() {
+    const a = el();
+    a.loop = false;
+    a.muted = false;
+    try {
+      const p = a.play();                          // 1) สั่ง Play ในจังหวะที่ผู้ใช้แตะปุ่ม
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          a.pause();                               // 2) Pause ทันทีที่เริ่มเล่น (ยังอยู่ในช่วงเงียบของไฟล์)
+          a.currentTime = 0;
+          setUnlocked(true);
+        }).catch(() => setUnlocked(false));
+      } else {                                     // เบราว์เซอร์เก่าที่ play() ไม่คืน Promise
+        a.pause();
+        a.currentTime = 0;
+        setUnlocked(true);
+      }
+    } catch (e) { /* ignore */ }
+
+    // สำรอง: ปลดล็อก Web Audio API ในจังหวะเดียวกัน (ใช้เล่นเสียงแทนหาก <audio> ถูกบล็อก)
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) {
+        ctx = ctx || new AC();
+        if (ctx.state === 'suspended') ctx.resume();
+        const src = ctx.createBufferSource();
+        src.buffer = ctx.createBuffer(1, 1, 22050);
+        src.connect(ctx.destination);
+        src.start(0);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  function beepFallback() {
+    if (!ctx || ctx.state !== 'running') return;
+    const t0 = ctx.currentTime;
+    [[988, 0], [784, 0.45], [988, 1.8], [784, 2.25]].forEach(([f, t]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + t);
+      g.gain.exponentialRampToValueAtTime(0.6, t0 + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + t + 0.8);
+      o.connect(g).connect(ctx.destination);
+      o.start(t0 + t); o.stop(t0 + t + 0.85);
+    });
+  }
+
+  /** เล่นเสียงแจ้งเตือนวนซ้ำ (สูงสุด maxMs) */
+  function play(maxMs = 30000) {
+    const a = el();
+    clearTimeout(stopTimer);
+    a.loop = true;
+    try { a.currentTime = 0; } catch (e) {}
+    const p = a.play();
+    if (p && typeof p.then === 'function') {
+      p.then(() => setUnlocked(true)).catch(() => { beepFallback(); setUnlocked(false); });
+    }
+    stopTimer = setTimeout(stop, maxMs);
+    try { if (navigator.vibrate) navigator.vibrate([500, 250, 500, 250, 1000]); } catch (e) {}
+  }
+
+  function stop() {
+    clearTimeout(stopTimer);
+    if (audio) { audio.pause(); audio.loop = false; try { audio.currentTime = 0; } catch (e) {} }
+    try { if (navigator.vibrate) navigator.vibrate(0); } catch (e) {}
+  }
+
+  return { unlock, play, stop, prepare: el, isUnlocked: () => unlocked };
+})();
+
+function updateSoundBanner() {
+  $('sound-banner').hidden = Sound.isUnlocked() || !todayActive().length;
+}
+
+/* =====================================================================
+ *  API (fetch → GAS Web App)
+ *  ไม่ใส่ header Content-Type เอง → เป็น text/plain = "simple request" ไม่เกิด CORS preflight
+ * ===================================================================== */
+async function api(action, data) {
+  const payload = Object.assign({ action, session: state.session }, data || {});
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 25000) : null;
+  let res;
+  try {
+    const r = await fetch(APP.API_URL, {
+      method: 'POST', body: JSON.stringify(payload), redirect: 'follow', signal: ctrl ? ctrl.signal : undefined,
+    });
+    res = await r.json();
+  } catch (e) {
+    const err = new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต');
+    err.code = 'NETWORK';
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  if (!res || !res.ok) {
+    const err = new Error((res && res.message) || 'เกิดข้อผิดพลาด');
+    err.code = res && res.code;
+    throw err;
+  }
+  return res.data;
+}
+
+async function apiAuthed(action, data) {
+  try {
+    return await api(action, data);
+  } catch (e) {
+    if (e.code !== 'AUTH_EXPIRED') throw e;
+    await login(true);
+    return api(action, data);
+  }
+}
+
+/* ------------------------------------------------------------------ LINE LIFF login */
+let liffReady = false;
+
+async function login(forceRefresh) {
+  if (!APP.DEV_MODE && !liffReady) {
+    if (typeof liff === 'undefined') throw new Error('โหลด LINE LIFF SDK ไม่สำเร็จ');
+    setLoading('กำลังเชื่อมต่อ LINE...');
+    await liff.init({ liffId: APP.LIFF_ID });
+    liffReady = true;
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: location.href });
+      await new Promise(() => {});             // หยุดรอ redirect
+    }
+    const dec = liff.getDecodedIDToken();
+    if (dec && dec.picture) state.picture = dec.picture;
+  }
+
+  if (!forceRefresh) {
+    try {
+      const cached = JSON.parse(sstore.get('q_session') || 'null');
+      if (cached && cached.exp > Date.now()) { state.session = cached.session; state.user = cached.user; return; }
+    } catch (e) {}
+  }
+
+  let idToken = 'DEV';
+  if (!APP.DEV_MODE) {
+    idToken = liff.getIDToken();
+    if (!idToken && !liff.isInClient() && !sstore.get('q_relogin')) {
+      // ล็อกอินที่ค้างไว้ไม่มี ID Token (เช่น ล็อกอินก่อนเปิด scope openid) → ล็อกอินใหม่ 1 ครั้ง
+      sstore.set('q_relogin', '1');
+      liff.logout();
+      liff.login({ redirectUri: location.href });
+      await new Promise(() => {});
+    }
+    if (!idToken) throw new Error('ยืนยันตัวตน LINE ไม่สำเร็จ กรุณาปิดหน้านี้แล้วเปิดลิงก์จองคิวใหม่อีกครั้ง');
+  }
+  setLoading('กำลังยืนยันตัวตน...');
+  let r;
+  try {
+    let devId = store.get('q_dev_id');
+    if (!devId) { devId = Math.random().toString(36).slice(2, 10); store.set('q_dev_id', devId); }
+    r = await api('auth', { idToken, devId });
+    sstore.del('q_relogin');
+  } catch (e) {
+    // ID Token หมดอายุ → login ใหม่ 1 ครั้ง (กันวนลูปกรณีตั้งค่า Channel ID ผิด)
+    if (e.code === 'AUTH_FAILED' && !APP.DEV_MODE && !sstore.get('q_relogin')) {
+      sstore.set('q_relogin', '1');
+      liff.logout();
+      liff.login({ redirectUri: location.href });
+      await new Promise(() => {});
+    }
+    throw e;
+  }
+  state.session = r.session;
+  state.user = r.user;
+  sstore.set('q_session', JSON.stringify({ session: r.session, user: r.user, exp: Date.now() + 11 * 3600000 }));
+}
+
+/* ------------------------------------------------------------------ bootstrap */
+async function loadBootstrap() {
+  setLoading('กำลังโหลดข้อมูลแผนกและช่วงเวลา...');
+  const d = await apiAuthed('bootstrap');
+  state.today = d.today;
+  state.config = d.config || {};
+  state.departments = d.departments || [];
+  state.slots = d.slots || [];
+  state.openDates = d.openDates || [];
+  state.myBookings = d.myBookings || [];
+  if (!state.openDates.includes(state.sel.date)) state.sel.date = state.openDates[0] || null;
+
+  renderHeader();
+  renderBookingForm();
+  if (allActive().length) showStatusView(); else showBookView();
+  checkFriendship();
+}
+
+/* ------------------------------------------------------------------ LINE OA (แจ้งเตือนแม้ปิดจอ)
+ * หน้าเว็บถูกมือถือหยุดทำงานเมื่อปิดจอ/สลับแอป → เสียงจากหน้าเว็บดังไม่ได้
+ * ระบบจึงส่งข้อความเข้า LINE แทน ซึ่งสมาชิกต้องเป็นเพื่อนกับ LINE OA ของสหกรณ์ก่อน */
+const friend = { isFriend: null };
+
+async function checkFriendship() {
+  const oa = state.config.lineOaId;
+  if (!oa) { updateFriendCard(); return; }
+  if (!APP.DEV_MODE && liffReady) {
+    try { friend.isFriend = !!(await liff.getFriendship()).friendFlag; }
+    catch (e) { friend.isFriend = store.get('q_friend_added') === oa ? true : null; }   // OA ยังไม่ได้ผูกกับ LIFF
+  }
+  updateFriendCard();
+}
+
+function updateFriendCard() {
+  const oa = state.config.lineOaId;
+  const later = sstore.get('q_friend_later') === '1';
+  $('friend-card').hidden = !oa || friend.isFriend === true || later;
+  const pushOn = !!oa && friend.isFriend === true;
+  $('status-hint').textContent = pushOn
+    ? 'เมื่อถึงคิว ระบบจะส่งข้อความเข้า LINE ของคุณ (ดังแม้ปิดหน้าจอ) · ถ้าเปิดหน้านี้ไว้ จะมีเสียงและหน้าจอเปลี่ยนสีด้วย'
+    : 'กรุณาเปิดหน้านี้ค้างไว้และเปิดเสียงโทรศัพท์ ระบบจะแจ้งเตือนเมื่อถึงคิว';
+  $('confirm-hint').textContent = pushOn
+    ? '🔔 เมื่อถึงคิว ระบบจะส่งข้อความเข้า LINE ของคุณ และถ้าเปิดหน้านี้อยู่จะมีเสียงเตือนด้วย กรุณาเปิดเสียงโทรศัพท์'
+    : '🔔 เมื่อกด “ยืนยันการจอง” ระบบจะเปิดการแจ้งเตือนด้วยเสียง กรุณาเปิดเสียงโทรศัพท์ (ปิดโหมดเงียบ) และเปิดหน้านี้ค้างไว้';
+}
+
+function addFriend() {
+  const oa = state.config.lineOaId;
+  if (!oa) return;
+  const url = 'https://line.me/R/ti/p/' + encodeURIComponent(oa);
+  store.set('q_friend_added', oa);
+  if (!APP.DEV_MODE && liffReady && liff.isInClient()) liff.openWindow({ url, external: false });
+  else window.open(url, '_blank');
+}
+
+function renderHeader() {
+  const c = state.config;
+  document.title = c.systemName || document.title;
+  $('sys-name').textContent = c.systemName || 'ระบบจองคิวออนไลน์';
+  $('org-name').textContent = c.orgName || '';
+  $('footer').textContent = c.orgName ? '© ' + c.orgName : '';
+  $('user-name').textContent = state.user ? 'สวัสดี คุณ' + state.user.displayName : '';
+  if (state.picture) { $('user-pic').src = state.picture; $('user-pic').hidden = false; }
+  $('announce').hidden = !c.announcement;
+  $('announce').textContent = c.announcement ? '📢 ' + c.announcement : '';
+}
+
+/* =====================================================================
+ *  BOOKING VIEW — ทุกตัวเลือกสร้างจากข้อมูลที่ดึงมาจาก Google Sheets
+ * ===================================================================== */
+function showBookView() {
+  show('view-book');
+  $('btn-go-status').hidden = !allActive().length;
+  updateSoundBanner();
+}
+
+function renderBookingForm() {
+  const closed = !state.config.bookingOpen || !state.openDates.length || !state.departments.length;
+  $('book-closed').hidden = !closed;
+  $('book-form').hidden = closed;
+  if (closed) {
+    $('book-closed').textContent = !state.config.bookingOpen
+      ? (state.config.closedMessage || 'ระบบปิดรับจองชั่วคราว')
+      : 'ขณะนี้ยังไม่มีวัน/แผนกที่เปิดให้จอง';
+    return;
+  }
+  $('member-id').value = $('member-id').value || store.get('q_member') || '';
+  $('phone').value = $('phone').value || store.get('q_phone') || '';
+  renderDates();
+  renderDepts();
+  loadSlots();
+}
+
+function renderDates() {
+  const tomorrow = addDays(state.today, 1);
+  $('date-list').innerHTML = state.openDates.map((d) => {
+    const dt = parseYmd(d);
+    const sel = d === state.sel.date;
+    const top = d === state.today ? 'วันนี้' : d === tomorrow ? 'พรุ่งนี้' : dt.toLocaleDateString('th-TH', { weekday: 'short' });
+    return `<button type="button" data-date="${d}"
+      class="shrink-0 w-[4.6rem] rounded-2xl border-2 py-2 text-center transition ${sel ? 'border-emerald-600 bg-emerald-600 text-white shadow' : 'border-slate-200 bg-white'}">
+      <span class="block text-xs">${esc(top)}</span>
+      <span class="block text-2xl font-bold leading-none my-1">${dt.getDate()}</span>
+      <span class="block text-xs">${esc(dt.toLocaleDateString('th-TH', { month: 'short' }))}</span>
+    </button>`;
+  }).join('');
+}
+
+function renderDepts() {
+  $('dept-list').innerHTML = state.departments.map((d) => {
+    const sel = d.id === state.sel.deptId;
+    return `<button type="button" data-dept="${esc(d.id)}"
+      class="text-left rounded-2xl border-2 p-3 bg-white transition ${sel ? 'border-emerald-600 ring-2 ring-emerald-200' : 'border-slate-200'}">
+      <div class="text-2xl">${esc(d.icon)}</div>
+      <div class="font-semibold mt-1 leading-tight">${esc(d.name)}</div>
+      ${d.description ? `<div class="text-xs text-slate-500 mt-1 leading-snug">${esc(d.description)}</div>` : ''}
+    </button>`;
+  }).join('');
+}
+
+let slotReq = 0;
+async function loadSlots() {
+  const { date, deptId } = state.sel;
+  state.availability = null;
+  updateBookBtn();
+  if (!date || !deptId) {
+    $('slot-list').innerHTML = '<p class="col-span-2 text-sm text-slate-500 bg-white rounded-xl p-4 text-center">เลือกวันที่และแผนกเพื่อดูช่วงเวลาว่าง</p>';
+    return;
+  }
+  const req = ++slotReq;
+  $('slot-list').innerHTML = Array(4).fill('<div class="h-16 rounded-xl bg-slate-200 animate-pulse"></div>').join('');
+  try {
+    const d = await apiAuthed('availability', { date, deptId });
+    if (req !== slotReq) return;
+    state.availability = d.slots;
+    if (!d.slots.some((s) => s.id === state.sel.slotId && s.available)) state.sel.slotId = null;
+    renderSlots();
+  } catch (e) {
+    if (req !== slotReq) return;
+    $('slot-list').innerHTML = `<p class="col-span-2 text-sm text-rose-600 bg-white rounded-xl p-4 text-center">${esc(e.message)}</p>`;
+  }
+  updateBookBtn();
+}
+
+function renderSlots() {
+  const slots = state.availability || [];
+  if (!slots.length) {
+    $('slot-list').innerHTML = '<p class="col-span-2 text-sm text-slate-500 bg-white rounded-xl p-4 text-center">ไม่มีช่วงเวลาให้บริการ</p>';
+    return;
+  }
+  $('slot-list').innerHTML = slots.map((s) => {
+    const sel = s.id === state.sel.slotId;
+    const cls = !s.available ? 'bg-slate-100 border-slate-200 text-slate-400'
+      : sel ? 'bg-emerald-600 border-emerald-600 text-white shadow' : 'bg-white border-slate-200';
+    const subCls = !s.available ? '' : sel ? 'text-white/90' : s.remaining <= 2 ? 'text-amber-600' : 'text-emerald-600';
+    const sub = s.available ? `ว่าง ${s.remaining}/${s.quota} คิว` : s.reason;
+    return `<button type="button" data-slot="${esc(s.id)}" ${s.available ? '' : 'disabled'}
+      class="rounded-xl border-2 px-2 py-2.5 text-center transition ${cls}">
+      <span class="block font-semibold">${esc(s.label)}</span>
+      <span class="block text-xs mt-0.5 ${subCls}">${esc(sub)}</span>
+    </button>`;
+  }).join('');
+}
+
+function updateBookBtn() {
+  const { date, deptId, slotId } = state.sel;
+  $('btn-book').disabled = !(date && deptId && slotId);
+}
+
+function readForm() {
+  return {
+    memberId: $('member-id').value.trim(),
+    phone: $('phone').value.replace(/\D/g, ''),
+  };
+}
+
+function openConfirm() {
+  const f = readForm();
+  if (!f.memberId) { toast('กรุณากรอกเลขทะเบียนสมาชิก', 'error'); $('member-id').focus(); return; }
+  if (!/^0\d{8,9}$/.test(f.phone)) { toast('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง', 'error'); $('phone').focus(); return; }
+  const dept = state.departments.find((d) => d.id === state.sel.deptId);
+  const slot = (state.availability || []).find((s) => s.id === state.sel.slotId);
+  const row = (k, v) => `<div class="flex justify-between gap-3"><dt class="text-slate-500">${k}</dt><dd class="font-semibold text-right">${esc(v)}</dd></div>`;
+  $('confirm-summary').innerHTML =
+    row('วันที่', fmtDateLong(state.sel.date)) +
+    row('แผนก', dept ? dept.name : '') +
+    row('ช่วงเวลา', slot ? slot.label : '') +
+    row('เลขสมาชิก', f.memberId) +
+    row('โทรศัพท์', f.phone);
+  $('modal-confirm').hidden = false;
+}
+
+async function submitBooking() {
+  const btn = $('btn-confirm');
+  btn.disabled = true;
+  btn.textContent = 'กำลังจอง...';
+  const f = readForm();
+  try {
+    let d, attempt = 0;
+    for (;;) {
+      try {
+        d = await apiAuthed('book', { date: state.sel.date, deptId: state.sel.deptId, slotId: state.sel.slotId, ...f });
+        break;
+      } catch (e) {
+        if (e.code === 'BUSY' && attempt++ < 2) { await sleep(800 + Math.random() * 800); continue; }
+        throw e;
+      }
+    }
+    store.set('q_member', f.memberId);
+    store.set('q_phone', f.phone);
+    state.myBookings.push(Object.assign(d.booking, { _bookedAt: Date.now() }));
+    $('modal-confirm').hidden = true;
+    state.sel.slotId = null;
+    toast('จองสำเร็จ! หมายเลขคิวของคุณคือ ' + d.booking.queueNo, 'success');
+    if (poll.running) startPolling();   // ทิ้งผล Polling ที่ค้างอยู่ (เป็นข้อมูลก่อนจอง) แล้วเริ่มรอบใหม่
+    showStatusView();
+    loadSlots();
+  } catch (e) {
+    toast(e.message, 'error');
+    if (['FULL', 'SLOT_PASSED', 'INVALID_DATE', 'DUPLICATE', 'LIMIT', 'NETWORK'].includes(e.code)) {
+      $('modal-confirm').hidden = true;
+      // NETWORK: คำขออาจถึงเซิร์ฟเวอร์และจองสำเร็จแล้ว / DUPLICATE: มีคิวที่เครื่องนี้ยังไม่รู้ → ดึงคิวของฉันใหม่
+      if (e.code === 'NETWORK' || e.code === 'DUPLICATE' || e.code === 'LIMIT') await refreshMyBookings();
+      loadSlots();
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'ยืนยันการจอง';
+  }
+}
+
+/** โหลดคิวของฉันใหม่จากเซิร์ฟเวอร์ ถ้าพบคิวที่ยังไม่แสดง → ไปหน้าคิวของฉัน */
+async function refreshMyBookings() {
+  try {
+    const d = await apiAuthed('bootstrap');
+    const before = allActive().length;
+    state.today = d.today;
+    state.myBookings = d.myBookings || [];
+    if (allActive().length > before) {
+      toast('พบคิวของคุณในระบบแล้ว', 'success');
+      showStatusView();
+    }
+  } catch (e) { /* ยังเชื่อมต่อไม่ได้ ผู้ใช้ลองใหม่ได้ */ }
+}
+
+/* =====================================================================
+ *  STATUS VIEW + POLLING (Real-time)
+ * ===================================================================== */
+function showStatusView() {
+  show('view-status');
+  renderStatus();
+  ensurePolling();
+  updateSoundBanner();
+  requestWakeLock();
+}
+
+function renderStatus() {
+  const today = state.myBookings.filter((b) => b.date === state.today && b.status !== 'CANCELLED');
+  const future = state.myBookings
+    .filter((b) => b.date > state.today && ACTIVE.includes(b.status))
+    .sort((a, b) => (a.date + a.queueNo).localeCompare(b.date + b.queueNo));
+  $('today-list').innerHTML = today.length
+    ? today.map(bookingCard).join('')
+    : '<div class="bg-white rounded-2xl p-5 text-center text-slate-500 text-sm">วันนี้คุณยังไม่มีคิว</div>';
+  $('future-wrap').hidden = !future.length;
+  $('future-list').innerHTML = future.map(bookingCard).join('');
+}
+
+function bookingCard(b) {
+  const isToday = b.date === state.today;
+  const called = b.status === 'CALLED';
+  const ui = STATUS_UI[b.status] || { label: b.status, badge: 'bg-slate-200 text-slate-600' };
+  const muted = called ? 'text-white/85' : 'text-slate-500';
+
+  let detail = '';
+  if (called) {
+    detail = `<p class="text-2xl font-bold mt-1">เชิญที่ช่องบริการ ${esc(b.counter || '')}</p>`;
+  } else if (b.status === 'WAITING' && isToday) {
+    detail = b.ahead == null ? `<p class="${muted}">กำลังตรวจสอบลำดับคิว...</p>`
+      : b.ahead === 0 ? '<p class="text-emerald-700 font-bold text-lg">คุณคือคิวถัดไป! กรุณาเตรียมตัว</p>'
+      : `<p class="${muted}">ก่อนหน้าคุณ <b class="text-3xl text-slate-800 align-middle">${b.ahead}</b> คิว</p>`;
+  } else if (b.status === 'WAITING') {
+    detail = `<p class="${muted} text-sm">กรุณามาตามวันและเวลาที่จอง</p>`;
+  } else if (b.status === 'DONE') {
+    detail = `<p class="${muted}">ขอบคุณที่ใช้บริการ</p>`;
+  }
+
+  const serving = (b.nowServing || [])
+    .map((s) => esc(s.queueNo) + (s.counter ? ` <span class="opacity-70">(ช่อง ${esc(s.counter)})</span>` : ''))
+    .join(', ');
+
+  return `<article class="rounded-3xl shadow-sm overflow-hidden ${called ? 'flash-called text-white' : 'bg-white'}">
+    <div class="px-4 pt-4 flex items-start justify-between gap-2">
+      <div class="min-w-0">
+        <p class="font-bold truncate">${esc(b.deptName)}</p>
+        <p class="text-sm ${muted}">${esc(isToday ? 'วันนี้' : fmtDateLong(b.date))} · ${esc(b.slotLabel)}</p>
+      </div>
+      <span class="shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${ui.badge}">${esc(ui.label)}</span>
+    </div>
+    <div class="px-4 py-3 text-center">
+      <p class="text-xs ${muted}">หมายเลขคิว</p>
+      <p class="text-6xl font-extrabold tracking-wider ${called ? '' : 'text-emerald-700'}">${esc(b.queueNo)}</p>
+      ${detail}
+    </div>
+    ${(isToday && serving) || b.status === 'WAITING' ? `
+    <div class="px-4 py-2.5 flex items-center justify-between gap-2 text-sm border-t ${called ? 'border-white/30' : 'border-slate-100'}">
+      <span class="${muted} truncate">${isToday && serving ? 'กำลังเรียก: <b>' + serving + '</b>' : ''}</span>
+      ${b.status === 'WAITING' ? `<button type="button" data-cancel="${esc(b.bookingId)}" class="shrink-0 text-rose-600 font-semibold">ยกเลิกคิว</button>` : ''}
+    </div>` : ''}
+  </article>`;
+}
+
+const poll = { gen: 0, timer: null, running: false, err: 0 };
+
+function ensurePolling() {
+  if (todayActive().length && !poll.running && !document.hidden) startPolling();
+}
+function startPolling() {
+  stopPolling();
+  poll.running = true;
+  tick(++poll.gen);
+}
+function stopPolling() {
+  poll.gen++;
+  clearTimeout(poll.timer);
+  poll.running = false;
+  setLive(false);
+}
+
+async function tick(gen) {
+  if (gen !== poll.gen) return;
+  if (document.hidden) { poll.running = false; return; }        // พักเมื่อหน้าจอถูกซ่อน (ประหยัดโควตา)
+  try {
+    const d = await apiAuthed('status');
+    if (gen !== poll.gen) return;
+    applyStatus(d);
+    poll.err = 0;
+    setLive(true);
+  } catch (e) {
+    poll.err++;
+    setLive(false);
+  }
+  if (gen !== poll.gen) return;
+  if (!todayActive().length) { stopPolling(); return; }
+  poll.timer = setTimeout(() => tick(gen), Math.min(pollDelay() * (1 + poll.err), 120000));  // backoff เมื่อ error
+}
+
+/**
+ * ความถี่ Polling แบบปรับตามระยะห่างคิว (ลดภาระเซิร์ฟเวอร์เมื่อมีผู้ใช้หลักพันต่อวัน)
+ *  - ใกล้ถึงคิว (ก่อนหน้า ≤ 3 คิว) → ทุก POLL_INTERVAL_SEC (ค่าเริ่มต้น 8 วินาที)
+ *  - ก่อนหน้า 4–10 คิว → 2 เท่า · มากกว่า 10 คิว → 4 เท่า
+ *  - ช่วงเวลาที่จองยังไม่เริ่มเกิน 60 นาที → ทุก 60 วินาที
+ */
+function pollDelay() {
+  const base = Math.max(5, Number(state.config.pollIntervalSec) || 8) * 1000;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let best = 60000;
+  todayActive().forEach((b) => {
+    let d;
+    if (b.status === 'CALLED' || b.ahead == null || b.ahead <= 3) d = base;
+    else if (b.ahead <= 10) d = base * 2;
+    else d = base * 4;
+    const slot = state.slots.find((s) => s.id === b.slotId);
+    if (slot && slot.start && b.status === 'WAITING' && b.ahead > 3) {
+      const [h, m] = slot.start.split(':').map(Number);
+      if (h * 60 + m - nowMin > 60) d = Math.max(d, 60000);
+    }
+    best = Math.min(best, d);
+  });
+  return best;
+}
+
+function applyStatus(d) {
+  state.today = d.date;
+  const seen = new Set();
+  (d.bookings || []).forEach((s) => {
+    seen.add(s.bookingId);
+    const i = state.myBookings.findIndex((b) => b.bookingId === s.bookingId);
+    if (i >= 0) state.myBookings[i] = Object.assign(state.myBookings[i], s);
+    else state.myBookings.push(s);                  // จองจากอุปกรณ์อื่น
+  });
+  // คิววันนี้ที่หายไปจากผลลัพธ์ = ถูกยกเลิก (เช่น แอดมินยกเลิก)
+  // ยกเว้นคิวที่เพิ่งจองจากเครื่องนี้ไม่เกิน 30 วินาที (ผลลัพธ์อาจเป็นข้อมูลก่อนการจองมาถึง)
+  const now = Date.now();
+  state.myBookings.forEach((b) => {
+    if (b.date === state.today && !seen.has(b.bookingId) && !(b._bookedAt && now - b._bookedAt < 30000)) {
+      b.status = 'CANCELLED';
+    }
+  });
+
+  state.myBookings
+    .filter((b) => b.date === state.today && b.status === 'CALLED')
+    .forEach((b) => {
+      // calledAt เปลี่ยนเมื่อเจ้าหน้าที่กด "เรียกซ้ำ" → แจ้งเตือนอีกครั้ง
+      const key = 'q_notified_' + b.bookingId + '_' + (b.counter || '') + '_' + (b.calledAt || '');
+      if (!store.get(key)) { store.set(key, '1'); triggerCalled(b); }
+    });
+
+  if (!$('view-status').hidden) renderStatus();
+  updateSoundBanner();
+}
+
+/** ถึงคิว: หน้าจอเปลี่ยนสี + เสียง + สั่น */
+function triggerCalled(b) {
+  $('oc-queue').textContent = b.queueNo;
+  $('oc-dept').textContent = b.deptName + ' · ' + b.slotLabel;
+  $('oc-counter').textContent = b.counter ? 'เชิญที่ช่องบริการ ' + b.counter : 'เชิญที่เคาน์เตอร์';
+  $('overlay-called').hidden = false;
+  Sound.play();
+  flashTitle('🔔 ถึงคิว ' + b.queueNo);
+}
+
+let titleTimer;
+function flashTitle(text) {
+  const orig = state.config.systemName || 'จองคิวออนไลน์';
+  let on = false;
+  clearInterval(titleTimer);
+  titleTimer = setInterval(() => { document.title = (on = !on) ? text : orig; }, 1000);
+  setTimeout(() => { clearInterval(titleTimer); document.title = orig; }, 30000);
+}
+
+function setLive(on) {
+  $('live-ping').hidden = !on;
+  $('live-dot').className = 'relative w-2.5 h-2.5 rounded-full ' + (on ? 'bg-emerald-500' : 'bg-slate-300');
+  $('live-text').textContent = on ? 'อัปเดตอัตโนมัติ' : (todayActive().length ? 'กำลังเชื่อมต่อ...' : 'ไม่มีคิววันนี้');
+}
+
+async function cancelBooking(id) {
+  if (!confirm('ยืนยันการยกเลิกคิวนี้?')) return;
+  try {
+    await apiAuthed('cancel', { bookingId: id });
+    const b = state.myBookings.find((x) => x.bookingId === id);
+    if (b) b.status = 'CANCELLED';
+    toast('ยกเลิกคิวเรียบร้อย', 'success');
+    if (allActive().length) renderStatus(); else { stopPolling(); showBookView(); }
+    loadSlots();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+/* ------------------------------------------------------------------ Screen Wake Lock (ถ้ารองรับ) */
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator && !wakeLock && todayActive().length) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    }
+  } catch (e) { /* ไม่รองรับ / ถูกปฏิเสธ */ }
+}
+
+/* ------------------------------------------------------------------ events */
+function bindEvents() {
+  $('date-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-date]'); if (!b) return;
+    state.sel.date = b.dataset.date; state.sel.slotId = null;
+    renderDates(); loadSlots();
+  });
+  $('dept-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-dept]'); if (!b) return;
+    state.sel.deptId = b.dataset.dept; state.sel.slotId = null;
+    renderDepts(); loadSlots();
+  });
+  $('slot-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-slot]'); if (!b || b.disabled) return;
+    state.sel.slotId = b.dataset.slot;
+    renderSlots(); updateBookBtn();
+  });
+  ['today-list', 'future-list'].forEach((id) => $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cancel]'); if (b) cancelBooking(b.dataset.cancel);
+  }));
+
+  $('btn-book').addEventListener('click', openConfirm);
+  $('btn-cancel-confirm').addEventListener('click', () => { $('modal-confirm').hidden = true; });
+
+  // ★ ปุ่มยืนยันการจอง: Audio Unlock ต้องเป็นบรรทัดแรก ก่อน await ใดๆ (ยังอยู่ใน user gesture)
+  $('btn-confirm').addEventListener('click', () => {
+    Sound.unlock();
+    submitBooking();
+  });
+
+  // หลังรีโหลดหน้า การปลดล็อกเสียงจะหายไป → ให้ผู้ใช้แตะแบนเนอร์เพื่อปลดล็อกใหม่
+  $('sound-banner').addEventListener('click', () => {
+    if (!$('overlay-called').hidden) Sound.play(); else Sound.unlock();
+    toast('เปิดเสียงแจ้งเตือนแล้ว', 'success');
+  });
+  $('btn-test-sound').addEventListener('click', () => {
+    Sound.play(2600);
+  });
+  $('btn-ack').addEventListener('click', () => {
+    Sound.stop();
+    $('overlay-called').hidden = true;
+  });
+
+  $('btn-add-friend').addEventListener('click', addFriend);
+  $('btn-friend-later').addEventListener('click', () => { sstore.set('q_friend_later', '1'); updateFriendCard(); });
+  $('btn-go-book').addEventListener('click', showBookView);
+  $('btn-go-status').addEventListener('click', showStatusView);
+  $('btn-retry').addEventListener('click', () => location.reload());
+  $('phone').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    if (todayActive().length) { startPolling(); requestWakeLock(); }   // กลับมาหน้าจอ → อัปเดตทันที
+    if (friend.isFriend !== true && state.config.lineOaId) checkFriendship();   // กลับจากหน้าเพิ่มเพื่อน
+  });
+}
+
+/* ------------------------------------------------------------------ init */
+async function init() {
+  bindEvents();
+  Sound.prepare();
+  show('view-loading');
+  try {
+    if (APP.API_URL.includes('YOUR_DEPLOYMENT_ID')) throw new Error('ยังไม่ได้ตั้งค่า API_URL ในไฟล์ index.html');
+    await login(false);
+    await loadBootstrap();
+  } catch (e) {
+    showError(e.message || String(e));
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
