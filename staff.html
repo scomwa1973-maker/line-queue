@@ -160,7 +160,15 @@
 
         <div class="bg-white rounded-3xl shadow-sm p-5">
           <h3 class="font-bold">โควตาแยกแผนก × ช่วงเวลา</h3>
-          <p class="text-xs text-slate-500 mb-3">ใส่ตัวเลขเฉพาะช่องที่ต้องการกำหนดพิเศษ (0 = ปิดรับช่วงนั้น) · เว้นว่าง = ใช้โควตา/ช่วงของแผนก หรือโควตาเริ่มต้นของช่วงเวลา (ตัวเลขสีเทา)</p>
+          <div class="flex flex-wrap items-center gap-2 my-3">
+            <span class="text-sm text-slate-600">ใช้กับ:</span>
+            <button type="button" id="quota-all" class="px-3 py-1.5 rounded-full text-sm font-semibold border">ทุกวัน</button>
+            <label class="flex items-center gap-1 text-sm text-slate-600">เฉพาะวันที่
+              <input type="date" id="quota-date" class="rounded-lg border border-slate-300 px-2 py-1">
+            </label>
+            <span id="quota-dates" class="flex flex-wrap gap-1"></span>
+          </div>
+          <p id="quota-hint" class="text-xs text-slate-500 mb-3"></p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead id="quota-head" class="text-left text-slate-500 border-b"></thead>
@@ -495,14 +503,29 @@ function renderQuotaGrid() {
   const d = state.settings;
   if (!d) return;
   const isBlank = (v) => v == null || String(v).trim() === '';
-  const ov = {}; (d.quotas || []).forEach((q) => { ov[q.deptId + '|' + q.slotId] = q.max; });
+  const qd = state.quotaDate || '';
+  const all = {}, ov = {};
+  (d.quotas || []).forEach((q) => {
+    if (!q.date) all[q.deptId + '|' + q.slotId] = q.max;
+    if ((q.date || '') === qd) ov[q.deptId + '|' + q.slotId] = q.max;
+  });
+  // ปุ่มเลือก "ทุกวัน" / วันที่ + ป้ายวันที่ที่มีโควตาพิเศษ (เฉพาะวันนี้เป็นต้นไป)
+  $('quota-all').className = 'px-3 py-1.5 rounded-full text-sm font-semibold border ' + (qd ? 'bg-white text-slate-600' : 'bg-emerald-600 text-white border-emerald-600');
+  $('quota-date').value = qd;
+  $('quota-date').min = d.today || '';
+  const dates = [...new Set((d.quotas || []).map((q) => q.date).filter((x) => x && x >= (d.today || '')))].sort();
+  $('quota-dates').innerHTML = dates.map((x) => `<button type="button" data-qdate="${x}" class="px-2 py-1 rounded-full text-xs border ${x === qd ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-amber-50 border-amber-300 text-amber-900'}">📅 ${new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</button>`).join('');
+  $('quota-hint').innerHTML = qd
+    ? `กำลังแก้โควตา <b>เฉพาะวันที่ ${new Date(qd + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</b> · ใส่ตัวเลขเฉพาะช่องที่ต่างจากปกติ (0 = ปิดรับช่วงนั้น) · เว้นว่าง = ใช้โควตาปกติ (ตัวเลขสีเทา)`
+    : 'โควตาที่ใช้ <b>ทุกวัน</b> · ใส่ตัวเลขเฉพาะช่องที่ต้องการกำหนดพิเศษ (0 = ปิดรับช่วงนั้น) · เว้นว่าง = ใช้โควตา/ช่วงของแผนก หรือโควตาเริ่มต้นของช่วงเวลา (ตัวเลขสีเทา) · ต้องการกำหนดเฉพาะบางวัน ให้เลือก "เฉพาะวันที่"';
   $('quota-head').innerHTML = '<tr><th class="py-2 pr-2">แผนก</th>' +
     d.slots.map((s) => `<th class="pr-2 text-center whitespace-nowrap">${esc(s.Label || s.SlotID)}</th>`).join('') + '</tr>';
   $('quota-rows').innerHTML = d.departments.map((r) => '<tr class="border-b last:border-0">' +
     `<td class="py-2 pr-2 whitespace-nowrap">${esc(r.Icon || '')} ${esc(r.DeptName)}</td>` +
     d.slots.map((s) => {
       const k = r.DeptID + '|' + s.SlotID;
-      const base = isBlank(r.SlotQuota) ? s.DefaultQuota : r.SlotQuota;
+      let base = isBlank(r.SlotQuota) ? s.DefaultQuota : r.SlotQuota;
+      if (qd && Object.prototype.hasOwnProperty.call(all, k)) base = all[k];   // ค่าปกติของวันนั้น = โควตาทุกวัน
       const has = Object.prototype.hasOwnProperty.call(ov, k);
       return `<td class="pr-2"><input type="number" min="0" data-quota-dept="${esc(r.DeptID)}" data-quota-slot="${esc(s.SlotID)}"
         value="${has ? esc(ov[k]) : ''}" placeholder="${esc(base)}"
@@ -513,9 +536,9 @@ function renderQuotaGrid() {
 async function saveQuota(el) {
   el.disabled = true;
   try {
-    const r = await api('adminSetQuota', { deptId: el.dataset.quotaDept, slotId: el.dataset.quotaSlot, value: el.value.trim() });
-    const q = (state.settings.quotas || []).filter((x) => !(x.deptId === r.deptId && x.slotId === r.slotId));
-    if (r.value !== '') q.push({ deptId: r.deptId, slotId: r.slotId, max: Number(r.value) });
+    const r = await api('adminSetQuota', { deptId: el.dataset.quotaDept, slotId: el.dataset.quotaSlot, date: state.quotaDate || '', value: el.value.trim() });
+    const q = (state.settings.quotas || []).filter((x) => !(x.deptId === r.deptId && x.slotId === r.slotId && (x.date || '') === (r.date || '')));
+    if (r.value !== '') q.push({ deptId: r.deptId, slotId: r.slotId, date: r.date || '', max: Number(r.value) });
     state.settings.quotas = q;
     renderQuotaGrid();
     toast(r.value === '' ? 'ล้างโควตาเฉพาะแล้ว (ใช้ค่าเริ่มต้น)' : 'บันทึกโควตาแล้ว');
@@ -593,8 +616,13 @@ function bind() {
       });
     } else if (e.target.dataset.quotaDept) {
       saveQuota(e.target);
+    } else if (e.target.id === 'quota-date') {
+      state.quotaDate = e.target.value || '';
+      renderQuotaGrid();
     }
   });
+  $('quota-all').addEventListener('click', () => { state.quotaDate = ''; renderQuotaGrid(); });
+  $('quota-dates').addEventListener('click', (e) => { const b = e.target.closest('[data-qdate]'); if (b) { state.quotaDate = b.dataset.qdate; renderQuotaGrid(); } });
 
   document.addEventListener('visibilitychange', () => { if (!document.hidden && state.tab === 'call' && state.session) startPolling(); });
 }
